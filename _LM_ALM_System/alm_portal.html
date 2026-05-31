@@ -537,15 +537,23 @@
       gap: 10px;
     }
 
-    /* Tab 4: Obsidian Graph Container */
     .graph-container {
       position: relative;
       height: calc(100vh - 180px);
       width: 100%;
       border-radius: 12px;
       border: 1px solid var(--panel-border);
-      background: rgba(6, 8, 15, 0.6);
+      background: radial-gradient(circle at center, #0B0E1B 0%, #030408 100%);
+      background-image: 
+        radial-gradient(circle at center, #0B0E1B 0%, #030408 100%),
+        radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+        radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+        radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px);
+      background-size: 100% 100%, 550px 550px, 350px 350px, 250px 250px;
+      background-position: 0 0, 40px 60px, 130px 270px, 70px 150px;
+      background-repeat: no-repeat, repeat, repeat, repeat;
       overflow: hidden;
+      box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
     }
 
     #cy {
@@ -1149,6 +1157,10 @@
                 <option value="2">2 Katman Derinlik</option>
               </select>
             </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin: 4px 0 8px 0;">
+              <input type="checkbox" id="graph-show-labels" checked onchange="applyGraphFilters()" style="width: auto; cursor: pointer; margin: 0;">
+              <label for="graph-show-labels" style="margin: 0; cursor: pointer; font-size: 13px; font-weight: normal; color: var(--text-primary);">Etiketleri Göster</label>
+            </div>
             <button onclick="resetGraphView()">Yeniden Ortala</button>
           </div>
           <div id="cy"></div>
@@ -1721,18 +1733,25 @@
       const elements = [];
       const filterLvl = document.getElementById('graph-level-filter').value;
       const search = document.getElementById('graph-search').value.toLowerCase();
-      const depth = document.getElementById('graph-depth').value;
+      const showLabels = document.getElementById('graph-show-labels').checked;
       
-      // Node colors
+      // Node colors (highly harmonious neon glowing palettes)
       const lvlColors = {
-        "L0": "#ff5a5f",
-        "L1": "#ffb400",
-        "L2": "#00bcd4",
-        "L3-C": "#4caf50",
-        "L3-D": "#e91e63",
-        "L4": "#9c27b0",
-        "L5": "#3f51b5"
+        "L0": "#ff3838", // Neon vision red
+        "L1": "#ff9f1a", // Neon GDD amber
+        "L2": "#17c0eb", // Neon NDD cyan
+        "L3-C": "#2ed573", // Neon TDD green
+        "L3-D": "#ff4757", // Neon ADD rose
+        "L4": "#ae11ff", // Neon PBI purple
+        "L5": "#1e90ff"  // Neon QA blue
       };
+
+      // Calculate node degrees (centrality) for dynamic sizing
+      const degrees = {};
+      projectData.edges.forEach(edge => {
+        degrees[edge.source] = (degrees[edge.source] || 0) + 1;
+        degrees[edge.target] = (degrees[edge.target] || 0) + 1;
+      });
 
       // Construct nodes
       Object.values(projectData.nodes).forEach(node => {
@@ -1749,32 +1768,40 @@
         if (filterLvl === "L0_L1" && lvlKey !== "L0" && lvlKey !== "L1") return;
         // Filter L3_L4
         if (filterLvl === "L3_L4" && lvlKey !== "L3-C" && lvlKey !== "L3-D" && lvlKey !== "L4") return;
-        // Filter Search
-        if (search && !node.id.toLowerCase().includes(search)) return;
+        
+        const deg = degrees[node.id] || 0;
+        const size = 20 + deg * 3.5; // Dynamic sizing based on connections
+        
+        const isMatch = !search || node.id.toLowerCase().includes(search);
         
         elements.push({
           data: {
             id: node.id,
             label: node.id,
             color: lvlColors[lvlKey] || '#818cf8',
-            shape: 'round-rectangle',
-            size: 25
+            size: size,
+            opacity: isMatch ? 1.0 : 0.15,
+            borderWidth: isMatch && search ? 4 : 2,
+            borderColor: isMatch && search ? '#00E5FF' : (lvlColors[lvlKey] || '#818cf8'),
+            shadowBlur: isMatch && search ? 20 : 10,
+            shadowColor: isMatch && search ? '#00E5FF' : (lvlColors[lvlKey] || '#818cf8')
           }
         });
       });
 
       // Construct edges
       projectData.edges.forEach(edge => {
-        // Only include edge if both nodes are rendered
         const hasSrc = elements.some(e => e.data.id === edge.source);
         const hasTgt = elements.some(e => e.data.id === edge.target);
         
         if (hasSrc && hasTgt) {
+          const edgeMatch = !search || (edge.source.toLowerCase().includes(search) && edge.target.toLowerCase().includes(search));
           elements.push({
             data: {
               id: `${edge.source}-${edge.target}`,
               source: edge.source,
-              target: edge.target
+              target: edge.target,
+              opacity: edgeMatch ? 0.15 : 0.02
             }
           });
         }
@@ -1788,36 +1815,53 @@
             selector: 'node',
             style: {
               'background-color': 'data(color)',
-              'label': 'data(label)',
-              'color': '#fff',
+              'label': showLabels ? 'data(label)' : '',
+              'color': '#ffffff',
               'font-size': '10px',
-              'font-family': 'Inter',
+              'font-family': 'Outfit, Inter, sans-serif',
+              'font-weight': 'bold',
               'text-valign': 'center',
               'text-halign': 'center',
-              'width': '65px',
-              'height': '30px',
-              'shape': 'round-rectangle',
-              'border-width': 1,
-              'border-color': 'rgba(255,255,255,0.2)',
-              'text-wrap': 'wrap'
+              'width': 'data(size)',
+              'height': 'data(size)',
+              'shape': 'ellipse',
+              'border-width': 'data(borderWidth)',
+              'border-color': 'data(borderColor)',
+              'background-opacity': 0.85,
+              'opacity': 'data(opacity)',
+              
+              // Neon cosmic glowing effect
+              'shadow-blur': 'data(shadowBlur)',
+              'shadow-color': 'data(shadowColor)',
+              'shadow-opacity': 0.8,
+              'shadow-offset-x': 0,
+              'shadow-offset-y': 0,
+              
+              'transition-property': 'opacity, border-color, border-width, background-color, shadow-blur, shadow-color',
+              'transition-duration': '0.35s'
             }
           },
           {
             selector: 'edge',
             style: {
-              'width': 1.5,
-              'line-color': 'rgba(255, 255, 255, 0.15)',
-              'target-arrow-color': 'rgba(255, 255, 255, 0.25)',
+              'width': 1,
+              'line-color': 'rgba(129, 140, 248, 0.15)',
+              'target-arrow-color': 'rgba(129, 140, 248, 0.25)',
               'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier'
+              'arrow-scale': 0.8,
+              'curve-style': 'bezier',
+              'opacity': 'data(opacity)',
+              'transition-property': 'line-color, width, opacity, target-arrow-color',
+              'transition-duration': '0.35s'
             }
           },
           {
             selector: 'node:selected',
             style: {
-              'border-width': 3,
-              'border-color': '#fff',
-              'box-shadow': '0 0 10px #fff'
+              'border-width': 4,
+              'border-color': '#ffffff',
+              'shadow-blur': 25,
+              'shadow-color': '#ffffff'
             }
           }
         ],
@@ -1827,7 +1871,7 @@
           nodeOverlap: 20,
           refresh: 20,
           fit: true,
-          padding: 30,
+          padding: 40,
           randomize: false,
           componentSpacing: 100,
           nodeRepulsion: 400000,
@@ -1838,9 +1882,138 @@
         }
       });
 
-      cyInstance.on('tap', 'node', function(evt) {
+      // Hover triggers: show labels on hover if "Show Labels" is unchecked
+      cyInstance.on('mouseover', 'node', function(evt) {
         const node = evt.target;
-        openRequirementDetails(node.id());
+        if (!document.getElementById('graph-show-labels').checked) {
+          node.style('label', node.data('label'));
+        }
+      });
+
+      cyInstance.on('mouseout', 'node', function(evt) {
+        const node = evt.target;
+        if (!document.getElementById('graph-show-labels').checked) {
+          node.style('label', '');
+        }
+      });
+
+      // Drag listener for correlation drag movement (Obsidian-like elastic physics)
+      let lastDragPos = null;
+
+      cyInstance.on('dragstart', 'node', function(evt) {
+        const node = evt.target;
+        lastDragPos = { ...node.position() };
+      });
+
+      cyInstance.on('drag', 'node', function(evt) {
+        const node = evt.target;
+        const currPos = node.position();
+        if (!lastDragPos) return;
+
+        const dx = currPos.x - lastDragPos.x;
+        const dy = currPos.y - lastDragPos.y;
+
+        lastDragPos = { ...currPos };
+
+        // Pull connected neighbors with 40% correlation
+        const neighbors = node.neighborhood('node');
+        neighbors.forEach(neigh => {
+          if (!neigh.grabbed()) {
+            const pos = neigh.position();
+            neigh.position({
+              x: pos.x + dx * 0.4,
+              y: pos.y + dy * 0.4
+            });
+          }
+        });
+      });
+
+      // Recursive DFS for Downstream Impact Mode
+      function getDownstreamNodes(startNodeId) {
+        const visited = new Set();
+        const queue = [startNodeId];
+        while (queue.length > 0) {
+          const curr = queue.shift();
+          if (!visited.has(curr)) {
+            visited.add(curr);
+            projectData.edges.forEach(edge => {
+              if (edge.source === curr && !visited.has(edge.target)) {
+                queue.push(edge.target);
+              }
+            });
+          }
+        }
+        return visited;
+      }
+
+      // Tap event: trigger impact mode + details slide-out
+      cyInstance.on('tap', 'node', function(evt) {
+        const clickedNode = evt.target;
+        const clickedNodeId = clickedNode.id();
+        
+        const downstreamSet = getDownstreamNodes(clickedNodeId);
+        
+        cyInstance.elements().forEach(el => {
+          if (el.isNode()) {
+            const nid = el.id();
+            if (downstreamSet.has(nid)) {
+              el.style({
+                'opacity': 1.0,
+                'border-color': '#ff1744', // Neon impact red
+                'border-width': nid === clickedNodeId ? 5 : 3,
+                'background-color': nid === clickedNodeId ? '#ff1744' : el.data('color'),
+                'shadow-blur': 25,
+                'shadow-color': '#ff1744'
+              });
+            } else {
+              el.style({
+                'opacity': 0.15,
+                'border-width': 1,
+                'shadow-blur': 0
+              });
+            }
+          } else if (el.isEdge()) {
+            if (downstreamSet.has(el.data('source')) && downstreamSet.has(el.data('target'))) {
+              el.style({
+                'line-color': '#ff1744',
+                'target-arrow-color': '#ff1744',
+                'width': 2.5,
+                'opacity': 0.8
+              });
+            } else {
+              el.style({
+                'opacity': 0.02
+              });
+            }
+          }
+        });
+
+        openRequirementDetails(clickedNodeId);
+      });
+
+      // Click on background: reset impact mode styles
+      cyInstance.on('tap', function(evt) {
+        if (evt.target === cyInstance) {
+          cyInstance.elements().forEach(el => {
+            if (el.isNode()) {
+              el.style({
+                'opacity': el.data('opacity'),
+                'border-color': el.data('borderColor'),
+                'border-width': el.data('borderWidth'),
+                'background-color': el.data('color'),
+                'shadow-blur': el.data('shadowBlur'),
+                'shadow-color': el.data('shadowColor')
+              });
+            } else if (el.isEdge()) {
+              el.style({
+                'line-color': 'rgba(129, 140, 248, 0.15)',
+                'target-arrow-color': 'rgba(129, 140, 248, 0.25)',
+                'width': 1,
+                'opacity': el.data('opacity')
+              });
+            }
+          });
+        }
       });
     }
 
@@ -2002,7 +2175,7 @@
           const val = matrix[l0][other];
           
           let cell_class = "matrix-cell-missing";
-          let cell_icon = "⚠️ Ex";
+          let cell_icon = "⚠️ Eksik";
           
           if (val === "LINKED") {
             linked_cells++;

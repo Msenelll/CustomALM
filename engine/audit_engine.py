@@ -59,6 +59,26 @@ def has_path_to_level(node_id, target_level, adj_backward, nodes, visited=None):
             
     return False
 
+def has_path_to_node(node_id, target_node_id, adj_backward, visited=None):
+    """
+    Checks if there is a path from node_id to target_node_id along backward/parent edges.
+    """
+    if visited is None:
+        visited = set()
+        
+    if node_id in visited:
+        return False
+    visited.add(node_id)
+    
+    if node_id == target_node_id:
+        return True
+        
+    for parent in adj_backward.get(node_id, []):
+        if has_path_to_node(parent, target_node_id, adj_backward, visited):
+            return True
+            
+    return False
+
 def parse_story_points(node):
     text = (node.get("title", "") + " " + node.get("desc", "")).lower()
     # Match patterns like: SP: 5, Story Point: 8, SP = 13, 5 SP, 8 Puan
@@ -282,7 +302,7 @@ def check_audit_rules(nodes, edges):
         coverage_matrix[l0] = {}
         for other in other_nodes:
             # Check if 'other' has an upward path to 'l0'
-            has_path = has_path_to_level(other, l0, adj_backward, nodes)
+            has_path = has_path_to_node(other, l0, adj_backward)
             coverage_matrix[l0][other] = "LINKED" if has_path else "MISSING"
 
     stats = {

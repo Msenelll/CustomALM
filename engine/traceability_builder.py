@@ -65,6 +65,35 @@ def build_traceability_edges(docs_path, nodes, manual_edges=None):
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
 
+        # Document-wide global upstreams scan (such as ## Giriş Ön Koşulları or Bağlı Olduğu lists near the top of the file)
+        rel_path = os.path.relpath(file_path, docs_path).replace("\\", "/")
+        local_tags = set(tag for tag, node in nodes.items() if node.get("file") == rel_path)
+        
+        global_upstreams = set()
+        in_global_precondition = False
+        
+        for line in lines:
+            line_strip = line.strip()
+            # Detect section heading like ## Giriş Ön Koşulları or ## Ön Koşullar or Pre-requisites
+            if re.search(r"^#+\s*(giri\u015f\s*|\u00f6n\s*)ko\u015fullar\u0131", line_strip, re.IGNORECASE) or "pre-requisite" in line_strip.lower():
+                in_global_precondition = True
+                continue
+            elif line_strip.startswith("#"):
+                in_global_precondition = False
+                
+            is_bağlı = re.search(r"ba\u011fl\u0131\s*oldu\u011fu", line_strip, re.IGNORECASE)
+            
+            if in_global_precondition or is_bağlı:
+                found_tags = ALL_TAGS_PATTERN.findall(line_strip)
+                for t in found_tags:
+                    if t not in local_tags:
+                        global_upstreams.add(t)
+                        
+        # Automatically connect all global upstreams to all local tags defined in this file
+        for local_tag in local_tags:
+            for g_up in global_upstreams:
+                add_directed_edge(edges, g_up, local_tag, edge_type="precondition")
+
         current_context_tag = None
         in_precondition_block = False
 
