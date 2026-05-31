@@ -1810,15 +1810,20 @@
         });
       });
 
-      // Construct edges
+      // Construct edges (de-duplicated by source and target pair to prevent Vis-Network duplicate ID crashes)
+      const seenEdges = new Set();
       projectData.edges.forEach(edge => {
         const hasSrc = nodesArray.some(n => n.id === edge.source);
         const hasTgt = nodesArray.some(n => n.id === edge.target);
         
         if (hasSrc && hasTgt) {
+          const edgeKey = `${edge.source}-${edge.target}`;
+          if (seenEdges.has(edgeKey)) return;
+          seenEdges.add(edgeKey);
+          
           const edgeMatch = !search || (edge.source.toLowerCase().includes(search) && edge.target.toLowerCase().includes(search));
           edgesArray.push({
-            id: `${edge.source}-${edge.target}`,
+            id: edgeKey,
             from: edge.source,
             to: edge.target,
             color: {
