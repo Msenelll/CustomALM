@@ -1772,7 +1772,7 @@
         if (filterLvl === "L3_L4" && lvlKey !== "L3-C" && lvlKey !== "L3-D" && lvlKey !== "L4") return;
         
         const deg = degrees[node.id] || 0;
-        const size = 15 + deg * 2; // Dynamic sizing based on connections
+        const size = 8 + Math.min(deg * 0.5, 12); // Base size 8, max size 20 (prevents massive size collisions)
         
         const isMatch = !search || node.id.toLowerCase().includes(search);
         const color = lvlColors[lvlKey] || '#818cf8';
@@ -1857,14 +1857,12 @@
       const options = {
         nodes: {
           shape: 'dot',
-          scaling: {
-            min: 10,
-            max: 45
-          },
           font: {
             color: '#ffffff',
             size: 11,
-            face: 'Outfit, Inter, sans-serif'
+            face: 'Outfit, Inter, sans-serif',
+            strokeWidth: 2,
+            strokeColor: '#090a0f'
           }
         },
         edges: {
@@ -1882,21 +1880,24 @@
           tooltipDelay: 100,
           selectConnectedEdges: false
         },
+        layout: {
+          improvedLayout: false
+        },
         physics: {
           enabled: true,
-          barnesHut: {
-            gravitationalConstant: -2500,
-            centralGravity: 0.35,
-            springLength: 90,
-            springConstant: 0.04,
-            damping: 0.09,
-            avoidOverlap: 0.25
+          solver: 'forceAtlas2Based',
+          forceAtlas2Based: {
+            gravitationalConstant: -120,
+            centralGravity: 0.015,
+            springLength: 130,
+            springConstant: 0.08,
+            damping: 0.4,
+            avoidOverlap: 1.0
           },
-          solver: 'barnesHut',
           stabilization: {
             enabled: true,
-            iterations: 150,
-            updateInterval: 25
+            iterations: 1000,
+            updateInterval: 50
           }
         }
       };
