@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Local Cytoscape Library -->
   <script src="lib/cytoscape.min.js"></script>
+  <!-- Local Vis-Network Library -->
+  <script src="lib/vis-network.min.js"></script>
   
   <style>
     :root {
@@ -1726,11 +1728,12 @@
       });
     }
 
-    // Tab 4: Obsidian Graph Rendering via Cytoscape.js
+    // Tab 4: Obsidian Graph Rendering via Vis-Network
     function initCytoscapeGraph() {
       if (!projectData) return;
       
-      const elements = [];
+      const nodesArray = [];
+      const edgesArray = [];
       const filterLvl = document.getElementById('graph-level-filter').value;
       const search = document.getElementById('graph-search').value.toLowerCase();
       const showLabels = document.getElementById('graph-show-labels').checked;
@@ -1764,171 +1767,153 @@
         else if (node.level.includes("L4")) lvlKey = "L4";
         else if (node.level.includes("L5")) lvlKey = "L5";
         
-        // Filter L0_L1
+        // Level Filters
         if (filterLvl === "L0_L1" && lvlKey !== "L0" && lvlKey !== "L1") return;
-        // Filter L3_L4
         if (filterLvl === "L3_L4" && lvlKey !== "L3-C" && lvlKey !== "L3-D" && lvlKey !== "L4") return;
         
         const deg = degrees[node.id] || 0;
-        const size = 20 + deg * 3.5; // Dynamic sizing based on connections
+        const size = 15 + deg * 2; // Dynamic sizing based on connections
         
         const isMatch = !search || node.id.toLowerCase().includes(search);
+        const color = lvlColors[lvlKey] || '#818cf8';
         
-        elements.push({
-          data: {
-            id: node.id,
-            label: node.id,
-            color: lvlColors[lvlKey] || '#818cf8',
-            size: size,
-            opacity: isMatch ? 1.0 : 0.15,
-            borderWidth: isMatch && search ? 4 : 2,
-            borderColor: isMatch && search ? '#00E5FF' : (lvlColors[lvlKey] || '#818cf8'),
-            shadowBlur: isMatch && search ? 20 : 10,
-            shadowColor: isMatch && search ? '#00E5FF' : (lvlColors[lvlKey] || '#818cf8')
-          }
+        nodesArray.push({
+          id: node.id,
+          label: showLabels ? node.id : "",
+          title: node.id + ": " + node.title + " (" + node.level + ")",
+          color: {
+            background: color,
+            border: color,
+            highlight: {
+              background: '#ff1744',
+              border: '#ff1744'
+            },
+            hover: {
+              background: color,
+              border: '#00E5FF'
+            }
+          },
+          size: size,
+          shape: 'dot',
+          borderWidth: isMatch && search ? 4 : 2,
+          opacity: isMatch ? 1.0 : 0.15,
+          shadow: {
+            enabled: isMatch,
+            color: isMatch && search ? '#00E5FF' : color,
+            size: isMatch && search ? 20 : 10,
+            x: 0,
+            y: 0
+          },
+          _origColor: color,
+          _origSize: size,
+          _origOpacity: isMatch ? 1.0 : 0.15
         });
       });
 
       // Construct edges
       projectData.edges.forEach(edge => {
-        const hasSrc = elements.some(e => e.data.id === edge.source);
-        const hasTgt = elements.some(e => e.data.id === edge.target);
+        const hasSrc = nodesArray.some(n => n.id === edge.source);
+        const hasTgt = nodesArray.some(n => n.id === edge.target);
         
         if (hasSrc && hasTgt) {
           const edgeMatch = !search || (edge.source.toLowerCase().includes(search) && edge.target.toLowerCase().includes(search));
-          elements.push({
-            data: {
-              id: `${edge.source}-${edge.target}`,
-              source: edge.source,
-              target: edge.target,
-              opacity: edgeMatch ? 0.15 : 0.02
-            }
+          edgesArray.push({
+            id: `${edge.source}-${edge.target}`,
+            from: edge.source,
+            to: edge.target,
+            color: {
+              color: edgeMatch ? 'rgba(129, 140, 248, 0.15)' : 'rgba(100, 100, 100, 0.02)',
+              highlight: '#ff1744',
+              hover: '#00E5FF'
+            },
+            width: 1,
+            arrows: {
+              to: {
+                enabled: true,
+                scaleFactor: 0.5
+              }
+            },
+            _origColor: edgeMatch ? 'rgba(129, 140, 248, 0.15)' : 'rgba(100, 100, 100, 0.02)',
+            _origWidth: 1,
+            _origOpacity: edgeMatch ? 1.0 : 0.05
           });
         }
       });
 
-      cyInstance = cytoscape({
-        container: document.getElementById('cy'),
-        elements: elements,
-        style: [
-          {
-            selector: 'node',
-            style: {
-              'background-color': 'data(color)',
-              'label': showLabels ? 'data(label)' : '',
-              'color': '#ffffff',
-              'font-size': '10px',
-              'font-family': 'Outfit, Inter, sans-serif',
-              'font-weight': 'bold',
-              'text-valign': 'center',
-              'text-halign': 'center',
-              'width': 'data(size)',
-              'height': 'data(size)',
-              'shape': 'ellipse',
-              'border-width': 'data(borderWidth)',
-              'border-color': 'data(borderColor)',
-              'background-opacity': 0.85,
-              'opacity': 'data(opacity)',
-              
-              // Neon cosmic glowing effect
-              'shadow-blur': 'data(shadowBlur)',
-              'shadow-color': 'data(shadowColor)',
-              'shadow-opacity': 0.8,
-              'shadow-offset-x': 0,
-              'shadow-offset-y': 0,
-              
-              'transition-property': 'opacity, border-color, border-width, background-color, shadow-blur, shadow-color',
-              'transition-duration': '0.35s'
-            }
+      const nodesDataSet = new vis.DataSet(nodesArray);
+      const edgesDataSet = new vis.DataSet(edgesArray);
+      
+      const container = document.getElementById('cy');
+      const data = {
+        nodes: nodesDataSet,
+        edges: edgesDataSet
+      };
+      
+      const options = {
+        nodes: {
+          shape: 'dot',
+          scaling: {
+            min: 10,
+            max: 45
           },
-          {
-            selector: 'edge',
-            style: {
-              'width': 1,
-              'line-color': 'rgba(129, 140, 248, 0.15)',
-              'target-arrow-color': 'rgba(129, 140, 248, 0.25)',
-              'target-arrow-shape': 'triangle',
-              'arrow-scale': 0.8,
-              'curve-style': 'bezier',
-              'opacity': 'data(opacity)',
-              'transition-property': 'line-color, width, opacity, target-arrow-color',
-              'transition-duration': '0.35s'
-            }
+          font: {
+            color: '#ffffff',
+            size: 11,
+            face: 'Outfit, Inter, sans-serif'
+          }
+        },
+        edges: {
+          color: {
+            inherit: false
           },
-          {
-            selector: 'node:selected',
-            style: {
-              'border-width': 4,
-              'border-color': '#ffffff',
-              'shadow-blur': 25,
-              'shadow-color': '#ffffff'
-            }
+          smooth: {
+            enabled: true,
+            type: 'continuous',
+            roundness: 0.5
           }
-        ],
-        layout: {
-          name: 'cose',
-          animate: true,
-          nodeOverlap: 20,
-          refresh: 20,
-          fit: true,
-          padding: 40,
-          randomize: false,
-          componentSpacing: 100,
-          nodeRepulsion: 400000,
-          edgeElasticity: 100,
-          nestingFactor: 5,
-          gravity: 80,
-          numIter: 1000
-        }
-      });
-
-      // Hover triggers: show labels on hover if "Show Labels" is unchecked
-      cyInstance.on('mouseover', 'node', function(evt) {
-        const node = evt.target;
-        if (!document.getElementById('graph-show-labels').checked) {
-          node.style('label', node.data('label'));
-        }
-      });
-
-      cyInstance.on('mouseout', 'node', function(evt) {
-        const node = evt.target;
-        if (!document.getElementById('graph-show-labels').checked) {
-          node.style('label', '');
-        }
-      });
-
-      // Drag listener for correlation drag movement (Obsidian-like elastic physics)
-      let lastDragPos = null;
-
-      cyInstance.on('dragstart', 'node', function(evt) {
-        const node = evt.target;
-        lastDragPos = { ...node.position() };
-      });
-
-      cyInstance.on('drag', 'node', function(evt) {
-        const node = evt.target;
-        const currPos = node.position();
-        if (!lastDragPos) return;
-
-        const dx = currPos.x - lastDragPos.x;
-        const dy = currPos.y - lastDragPos.y;
-
-        lastDragPos = { ...currPos };
-
-        // Pull connected neighbors with 40% correlation
-        const neighbors = node.neighborhood('node');
-        neighbors.forEach(neigh => {
-          if (!neigh.grabbed()) {
-            const pos = neigh.position();
-            neigh.position({
-              x: pos.x + dx * 0.4,
-              y: pos.y + dy * 0.4
-            });
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 100,
+          selectConnectedEdges: false
+        },
+        physics: {
+          enabled: true,
+          barnesHut: {
+            gravitationalConstant: -2500,
+            centralGravity: 0.35,
+            springLength: 90,
+            springConstant: 0.04,
+            damping: 0.09,
+            avoidOverlap: 0.25
+          },
+          solver: 'barnesHut',
+          stabilization: {
+            enabled: true,
+            iterations: 150,
+            updateInterval: 25
           }
-        });
+        }
+      };
+      
+      cyInstance = new vis.Network(container, data, options);
+
+      // Hover events to show/hide labels dynamically if "Show Labels" is unchecked
+      cyInstance.on('hoverNode', function(params) {
+        if (!document.getElementById('graph-show-labels').checked) {
+          const nodeId = params.node;
+          nodesDataSet.update({ id: nodeId, label: nodeId });
+        }
+      });
+      
+      cyInstance.on('blurNode', function(params) {
+        if (!document.getElementById('graph-show-labels').checked) {
+          const nodeId = params.node;
+          nodesDataSet.update({ id: nodeId, label: "" });
+        }
       });
 
-      // Recursive DFS for Downstream Impact Mode
+      // Downstream reachable nodes DFS
       function getDownstreamNodes(startNodeId) {
         const visited = new Set();
         const queue = [startNodeId];
@@ -1946,74 +1931,100 @@
         return visited;
       }
 
-      // Tap event: trigger impact mode + details slide-out
-      cyInstance.on('tap', 'node', function(evt) {
-        const clickedNode = evt.target;
-        const clickedNodeId = clickedNode.id();
-        
-        const downstreamSet = getDownstreamNodes(clickedNodeId);
-        
-        cyInstance.elements().forEach(el => {
-          if (el.isNode()) {
-            const nid = el.id();
-            if (downstreamSet.has(nid)) {
-              el.style({
-                'opacity': 1.0,
-                'border-color': '#ff1744', // Neon impact red
-                'border-width': nid === clickedNodeId ? 5 : 3,
-                'background-color': nid === clickedNodeId ? '#ff1744' : el.data('color'),
-                'shadow-blur': 25,
-                'shadow-color': '#ff1744'
-              });
-            } else {
-              el.style({
-                'opacity': 0.15,
-                'border-width': 1,
-                'shadow-blur': 0
-              });
-            }
-          } else if (el.isEdge()) {
-            if (downstreamSet.has(el.data('source')) && downstreamSet.has(el.data('target'))) {
-              el.style({
-                'line-color': '#ff1744',
-                'target-arrow-color': '#ff1744',
-                'width': 2.5,
-                'opacity': 0.8
-              });
-            } else {
-              el.style({
-                'opacity': 0.02
-              });
-            }
-          }
-        });
-
-        openRequirementDetails(clickedNodeId);
+      // Click event: trigger impact mode + details slide-out drawer
+      cyInstance.on('selectNode', function(params) {
+        if (params.nodes.length > 0) {
+          const clickedNodeId = params.nodes[0];
+          const downstreamSet = getDownstreamNodes(clickedNodeId);
+          
+          // Update nodes styling for impact mode
+          const nodeUpdates = nodesArray.map(node => {
+            const isDownstream = downstreamSet.has(node.id);
+            return {
+              id: node.id,
+              opacity: isDownstream ? 1.0 : 0.15,
+              color: {
+                background: isDownstream ? (node.id === clickedNodeId ? '#ff1744' : node.color.background) : 'rgba(100, 100, 100, 0.1)',
+                border: isDownstream ? '#ff1744' : 'rgba(100, 100, 100, 0.1)'
+              },
+              shadow: {
+                enabled: isDownstream,
+                color: isDownstream ? '#ff1744' : 'transparent',
+                size: isDownstream ? 25 : 0
+              }
+            };
+          });
+          nodesDataSet.update(nodeUpdates);
+          
+          // Update edges styling for impact mode
+          const edgeUpdates = edgesArray.map(edge => {
+            const isDownstreamEdge = downstreamSet.has(edge.from) && downstreamSet.has(edge.to);
+            return {
+              id: edge.id,
+              color: {
+                color: isDownstreamEdge ? '#ff1744' : 'rgba(100, 100, 100, 0.02)',
+                highlight: '#ff1744'
+              },
+              width: isDownstreamEdge ? 2.5 : 0.5
+            };
+          });
+          edgesDataSet.update(edgeUpdates);
+          
+          openRequirementDetails(clickedNodeId);
+        }
       });
 
-      // Click on background: reset impact mode styles
-      cyInstance.on('tap', function(evt) {
-        if (evt.target === cyInstance) {
-          cyInstance.elements().forEach(el => {
-            if (el.isNode()) {
-              el.style({
-                'opacity': el.data('opacity'),
-                'border-color': el.data('borderColor'),
-                'border-width': el.data('borderWidth'),
-                'background-color': el.data('color'),
-                'shadow-blur': el.data('shadowBlur'),
-                'shadow-color': el.data('shadowColor')
-              });
-            } else if (el.isEdge()) {
-              el.style({
-                'line-color': 'rgba(129, 140, 248, 0.15)',
-                'target-arrow-color': 'rgba(129, 140, 248, 0.25)',
-                'width': 1,
-                'opacity': el.data('opacity')
-              });
+      // Clear impact mode on deselecting or clicking on background
+      function resetNetworkStyles() {
+        const nodeResets = nodesArray.map(node => {
+          return {
+            id: node.id,
+            opacity: node._origOpacity,
+            color: {
+              background: node.color.background,
+              border: node.color.border
+            },
+            shadow: {
+              enabled: true,
+              color: node.shadow.color,
+              size: node.shadow.size
             }
-          });
+          };
+        });
+        nodesDataSet.update(nodeResets);
+        
+        const edgeResets = edgesArray.map(edge => {
+          return {
+            id: edge.id,
+            color: {
+              color: edge.color.color
+            },
+            width: edge._origWidth
+          };
+        });
+        edgesDataSet.update(edgeResets);
+      }
+
+      cyInstance.on('deselectNode', function(params) {
+        resetNetworkStyles();
+      });
+
+      cyInstance.on('click', function(params) {
+        if (params.nodes.length === 0) {
+          resetNetworkStyles();
         }
+      });
+    }
+
+    function applyGraphFilters() {
+      initCytoscapeGraph();
+    }
+
+    function resetGraphView() {
+      if (cyInstance && typeof cyInstance.fit === 'function') {
+        cyInstance.fit({ animation: true });
+      }
+    }
       });
     }
 
