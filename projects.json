@@ -1,0 +1,14 @@
+{
+  "projects": [
+    {
+      "id": "ProjectCult",
+      "name": "Project Cult",
+      "local_root": "C:/repo/3_UE5_ProjectCult/",
+      "docs_path": "C:/repo/3_UE5_ProjectCult/docs/ProjectDocuments/",
+      "rules_path": "C:/repo/3_UE5_ProjectCult/docs/Standarts/",
+      "github_url": "",
+      "last_scan": null,
+      "created_at": "2026-05-31T17:45:00"
+    }
+  ]
+}
